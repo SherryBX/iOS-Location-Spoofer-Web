@@ -512,7 +512,7 @@ html.dark #search-history {
   box-shadow:var(--shadow-float);
   border-radius:var(--r-md);
   overflow:hidden;
-  max-height:260px;overflow-y:auto;
+  max-height:min(340px, 52vh);overflow-y:auto;
   /* Scrollbar styles for search results */
   scrollbar-width: thin;
   scrollbar-color: rgba(150, 150, 150, 0.4) transparent;
@@ -544,8 +544,36 @@ html.dark #search-results::-webkit-scrollbar-thumb {
 }
 .result-row:last-child{border-bottom:none;}
 .result-row:active{background:rgba(0,122,255,.08);}
-.result-row .name{font-weight:500;}
-.result-row .sub{font-size:12px;color:var(--text-secondary);margin-top:2px;}
+.result-row .result-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.result-row .name{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.result-row .sub{font-size:12px;color:var(--text-secondary);margin-top:2px;line-height:1.35;}
+.result-tag{
+  font-size:10px;font-weight:600;padding:2px 6px;border-radius:6px;flex-shrink:0;
+  background:rgba(0,122,255,.12);color:var(--accent);
+}
+.result-tag.osm{background:rgba(48,209,88,.14);color:#1f9d45;}
+html.dark .result-tag.osm{color:#30D158;}
+.search-tabs{
+  position:sticky;top:0;z-index:2;
+  display:flex;gap:6px;padding:8px 12px;
+  background:var(--glass-light);
+  backdrop-filter:var(--blur-md);-webkit-backdrop-filter:var(--blur-md);
+  border-bottom:1px solid rgba(60,60,67,.1);
+}
+.search-tab{
+  border:none;border-radius:12px;padding:5px 10px;
+  font-size:12px;font-weight:600;cursor:pointer;
+  background:rgba(60,60,67,.08);color:var(--text-secondary);
+  transition:background .15s,color .15s;
+}
+html.dark .search-tab{background:rgba(255,255,255,.1);}
+.search-tab.active{background:var(--accent);color:#fff;}
+.search-group-title{
+  padding:7px 16px 5px;font-size:11px;font-weight:600;
+  color:var(--text-secondary);background:rgba(60,60,67,.04);
+  border-bottom:1px solid rgba(60,60,67,.06);
+}
+html.dark .search-group-title{background:rgba(255,255,255,.04);border-bottom-color:rgba(255,255,255,.06);}
 
 /* ═══════════════════════════════════════════════
    LAYER SWITCHER  (top right)
@@ -966,7 +994,7 @@ html.dark #search-results::-webkit-scrollbar-thumb {
 
 <!-- Top search bar -->
 <div id="search-bar">
-  <input id="search-input" type="text" placeholder="搜索地点…" autocomplete="off" spellcheck="false">
+  <input id="search-input" type="text" placeholder="搜索全球地点或输入经纬度…" autocomplete="off" spellcheck="false">
   <button id="search-btn" aria-label="搜索">
     <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
   </button>
@@ -1193,8 +1221,29 @@ var GCJ = (function(){
     if(out(lat,lng))return[lat,lng];
     var g=w2g(lat,lng);return[lat*2-g[0],lng*2-g[1]];
   }
-  return{w2g:w2g,g2w:g2w};
+  return{w2g:w2g,g2w:g2w,isOut:out};
 })();
+
+function isWgsLayer(name){
+  var l=name||currentLayer;
+  return l==='osm'||l==='esri';
+}
+function wgsToDisp(lat,lng,layerName){
+  return isWgsLayer(layerName)?[lat,lng]:GCJ.w2g(lat,lng);
+}
+function dispToWgs(lat,lng,layerName){
+  return isWgsLayer(layerName)?[lat,lng]:GCJ.g2w(lat,lng);
+}
+function jumpToWgs(wLat,wLng,zoom){
+  var switched=false;
+  if(GCJ.isOut(wLat,wLng)&&!isWgsLayer(currentLayer)){
+    switchLayer(currentLayer==='sat'?'esri':'osm');
+    switched=true;
+  }
+  var disp=wgsToDisp(wLat,wLng);
+  map.setView([disp[0],disp[1]],zoom||16,{animate:true});
+  return switched;
+}
 
 /* ─── State ──────────────────────────────────────────────── */
 var map, currentLayer=(AMAP_KEY?'amap':'osm');
@@ -1294,7 +1343,7 @@ function scheduleElevation(){
 /* ─── Map center → WGS-84 ────────────────────────────────── */
 function onMapMove(){
   var c=map.getCenter();
-  var w=(currentLayer==='osm'||currentLayer==='esri')?[c.lat,c.lng]:GCJ.g2w(c.lat,c.lng);
+  var w=dispToWgs(c.lat,c.lng);
   WGS={lat:w[0],lng:w[1]};
   updateBubble();
   updateStatus();
@@ -1321,14 +1370,12 @@ function buildLayers(){
 }
 
 function initMap(lat,lng){
-  var dispLat,dispLng;
-  if(currentLayer==='osm'||currentLayer==='esri'){dispLat=lat;dispLng=lng;}
-  else{var g=GCJ.w2g(lat,lng);dispLat=g[0];dispLng=g[1];}
+  var disp=wgsToDisp(lat,lng);
 
   map=L.map('map',{zoomControl:false,attributionControl:true});
   buildLayers();
   layers[currentLayer].addTo(map);
-  map.setView([dispLat,dispLng],13);
+  map.setView([disp[0],disp[1]],13);
   map.on('move',onMapMove);
   map.on('moveend',onMapMove);
 
@@ -1347,13 +1394,14 @@ function switchLayer(name){
   if(name===currentLayer)return;
   var c=map.getCenter();
   // Convert current display coords → WGS-84 → new display coords
-  var wgs=(currentLayer==='osm'||currentLayer==='esri')?[c.lat,c.lng]:GCJ.g2w(c.lat,c.lng);
-  var newDisp=(name==='osm'||name==='esri')?wgs:GCJ.w2g(wgs[0],wgs[1]);
+  var wgs=dispToWgs(c.lat,c.lng);
+  var newDisp=wgsToDisp(wgs[0],wgs[1],name);
 
   map.removeLayer(layers[currentLayer]);
   currentLayer=name;
   layers[name].addTo(map);
   map.setView([newDisp[0],newDisp[1]],map.getZoom(),{animate:false});
+  if(lockedWGS)updateLockedPin(lockedWGS.lat,lockedWGS.lng);
 
   // Update UI
   document.querySelectorAll('.layer-item').forEach(function(el){
@@ -1411,6 +1459,179 @@ window.clearHistory = function(e) {
   $id('search-input').focus();
 }
 
+var searchSeq=0;
+var searchState={query:'',filter:'all',amap:[],osm:[],amapDone:false,osmDone:false};
+
+function fetchAmapPlaces(q){
+  if(!AMAP_KEY)return Promise.resolve([]);
+  return fetch('https://restapi.amap.com/v3/assistant/inputtips?keywords='+encodeURIComponent(q)+'&key='+AMAP_KEY)
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.status!=='1'||!d.tips)return[];
+      var items=[];
+      d.tips.forEach(function(it){
+        if(!it.location||typeof it.location!=='string')return;
+        var p=it.location.split(',');
+        var gLng=parseFloat(p[0]),gLat=parseFloat(p[1]);
+        if(isNaN(gLat)||isNaN(gLng))return;
+        items.push({
+          source:'amap',
+          name:it.name||'',
+          sub:(it.district||'')+(it.address||''),
+          wgs:GCJ.g2w(gLat,gLng),
+          isOverseas:false
+        });
+      });
+      return items;
+    });
+}
+
+function fetchGlobalPlaces(q){
+  return fetch('https://nominatim.openstreetmap.org/search?format=json&limit=6&accept-language=zh-CN,en&q='+encodeURIComponent(q))
+    .then(function(r){
+      if(!r.ok)throw new Error(r.status);
+      return r.json();
+    })
+    .then(function(a){
+      var list=(a||[]).map(function(it){
+        var wLat=parseFloat(it.lat),wLng=parseFloat(it.lon);
+        var parts=(it.display_name||'').split(',');
+        return{
+          source:'osm',
+          name:(parts[0]||'').trim(),
+          sub:parts.slice(1).join(', ').trim(),
+          wgs:[wLat,wLng],
+          isOverseas:GCJ.isOut(wLat,wLng)
+        };
+      }).filter(function(it){return !isNaN(it.wgs[0])&&!isNaN(it.wgs[1]);});
+      if(!list.length)throw new Error('empty');
+      return list;
+    })
+    .catch(function(){
+      // Fallback to Photon if Nominatim fails, is rate-limited, or returns empty
+      return fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&limit=6')
+        .then(function(r){
+          if(!r.ok)throw new Error(r.status);
+          return r.json();
+        })
+        .then(function(fc){
+          return ((fc&&fc.features)||[]).map(function(f){
+            var coords=(f.geometry&&f.geometry.coordinates)||[];
+            var p=f.properties||{};
+            var wLng=parseFloat(coords[0]),wLat=parseFloat(coords[1]);
+            var subParts=[p.street,p.locality,p.district,p.city,p.state,p.country].filter(Boolean);
+            return{
+              source:'osm',
+              name:p.name||subParts[0]||'未命名地点',
+              sub:subParts.join(', '),
+              wgs:[wLat,wLng],
+              isOverseas:GCJ.isOut(wLat,wLng)
+            };
+          }).filter(function(it){return !isNaN(it.wgs[0])&&!isNaN(it.wgs[1]);});
+        });
+    });
+}
+
+function createResultRow(item){
+  var box=$id('search-results');
+  var row=document.createElement('div');
+  row.className='result-row';
+  var tagClass=item.source==='osm'?'result-tag osm':'result-tag';
+  var tagText=item.source==='osm'?'全球':'高德';
+  row.innerHTML='<div class="result-head"><span class="name">'+escHtml(item.name)+'</span><span class="'+tagClass+'">'+tagText+'</span></div>'
+               +(item.sub?'<div class="sub">'+escHtml(item.sub)+'</div>':'');
+  row.addEventListener('click',function(){
+    var switched=jumpToWgs(item.wgs[0],item.wgs[1],16);
+    box.style.display='none';
+    $id('search-input').value='';
+    if(switched)toast('已跳转并切换至国际地图');
+  });
+  return row;
+}
+
+function renderSearchResults(){
+  var box=$id('search-results');
+  var allDone=searchState.amapDone&&searchState.osmDone;
+  var amapList=searchState.amap, osmList=searchState.osm;
+
+  if(!amapList.length&&!osmList.length){
+    box.innerHTML=allDone
+      ?'<div class="result-row"><span class="name">未找到结果，可尝试输入经纬度直接跳转</span></div>'
+      :'<div class="result-row"><span class="name">搜索中…</span></div>';
+    return;
+  }
+
+  box.innerHTML='';
+  if(AMAP_KEY){
+    var tabs=document.createElement('div');
+    tabs.className='search-tabs';
+    var totalCount=amapList.length+osmList.length;
+    var tabDefs=[
+      {id:'all',label:'全部 ('+totalCount+')'},
+      {id:'amap',label:'国内·高德 ('+amapList.length+')'},
+      {id:'osm',label:'全球·OSM ('+osmList.length+')'}
+    ];
+    tabDefs.forEach(function(t){
+      var btn=document.createElement('button');
+      btn.type='button';
+      btn.className='search-tab'+(searchState.filter===t.id?' active':'');
+      btn.textContent=t.label;
+      btn.addEventListener('click',function(e){
+        e.stopPropagation();
+        searchState.filter=t.id;
+        renderSearchResults();
+      });
+      tabs.appendChild(btn);
+    });
+    box.appendChild(tabs);
+  }
+
+  var hasCjk=/[\u4e00-\u9fff]/.test(searchState.query);
+  var osmTopOverseas=osmList.length>0&&osmList[0].isOverseas;
+  var globalFirst=isWgsLayer()||!hasCjk||osmTopOverseas;
+
+  function appendGroup(title,items,limit){
+    if(!items.length)return;
+    if(title){
+      var hdr=document.createElement('div');
+      hdr.className='search-group-title';
+      hdr.textContent=title;
+      box.appendChild(hdr);
+    }
+    var list=limit?items.slice(0,limit):items;
+    list.forEach(function(it){box.appendChild(createResultRow(it));});
+  }
+
+  function appendEmptyRow(msg){
+    var row=document.createElement('div');
+    row.className='result-row';
+    row.innerHTML='<span class="name">'+escHtml(msg)+'</span>';
+    box.appendChild(row);
+  }
+
+  if(searchState.filter==='amap'){
+    if(amapList.length)appendGroup('',amapList);
+    else appendEmptyRow(searchState.amapDone?'高德暂无匹配结果':'高德搜索中…');
+    return;
+  }
+  if(searchState.filter==='osm'){
+    if(osmList.length)appendGroup('',osmList);
+    else appendEmptyRow(searchState.osmDone?'全球搜索暂无匹配结果':'全球搜索中…');
+    return;
+  }
+
+  var showHeaders=AMAP_KEY&&amapList.length&&osmList.length;
+  var perLimit=showHeaders?4:6;
+  var order=globalFirst?['osm','amap']:['amap','osm'];
+  order.forEach(function(src){
+    if(src==='osm'){
+      appendGroup(showHeaders?'全球搜索 · OpenStreetMap':'',osmList,perLimit);
+    }else{
+      appendGroup(showHeaders?'国内搜索 · 高德地图':'',amapList,perLimit);
+    }
+  });
+}
+
 function doSearch(){
   var q=$id('search-input').value.trim();
   if(!q)return;
@@ -1418,82 +1639,48 @@ function doSearch(){
   $id('search-input').blur(); // 取消焦点
   $id('search-history').classList.add('hidden'); // 隐藏历史记录下拉
 
-
   // 坐标直接跳转：支持 "lat, lng" 或 "lat lng" 格式
   var coordMatch=q.match(/^\s*(-?\d+\.?\d*)\s*[,\s]\s*(-?\d+\.?\d*)\s*$/);
   if(coordMatch){
     var cLat=parseFloat(coordMatch[1]),cLng=parseFloat(coordMatch[2]);
     if(cLat>=-90&&cLat<=90&&cLng>=-180&&cLng<=180){
-      var disp=(currentLayer==='osm'||currentLayer==='esri')?[cLat,cLng]:GCJ.w2g(cLat,cLng);
-      map.setView([disp[0],disp[1]],16,{animate:true});
+      var switched=jumpToWgs(cLat,cLng,16);
       $id('search-results').style.display='none';
       $id('search-input').value='';
-      toast('已跳转到坐标 '+cLat.toFixed(5)+', '+cLng.toFixed(5));
+      toast('已跳转到坐标 '+cLat.toFixed(5)+', '+cLng.toFixed(5)+(switched?'（已切至国际地图）':''));
       return;
     }
   }
-  var box=$id('search-results');
-  box.innerHTML='<div class="result-row"><span class="name">搜索中…</span></div>';
-  box.style.display='block';
 
-  if (AMAP_KEY) {
-    fetch('https://restapi.amap.com/v3/assistant/inputtips?keywords='+encodeURIComponent(q)+'&key='+AMAP_KEY)
-      .then(function(r){return r.json();})
-      .then(function(d){
-        box.innerHTML='';
-        if(d.status !== '1' || !d.tips || !d.tips.length){
-          box.innerHTML='<div class="result-row"><span class="name">未找到结果</span></div>';
-          return;
-        }
-        d.tips.forEach(function(it){
-          if (!it.location || typeof it.location !== 'string') return;
-          var row=document.createElement('div');row.className='result-row';
-          var locParts = it.location.split(',');
-          var gcjLng = parseFloat(locParts[0]);
-          var gcjLat = parseFloat(locParts[1]);
-          row.innerHTML='<div class="name">'+escHtml(it.name)+'</div>'
-                       +'<div class="sub">'+escHtml((it.district || '') + (it.address || ''))+'</div>';
-          row.addEventListener('click',function(){
-            var disp = (currentLayer === 'osm'||currentLayer === 'esri') ? GCJ.g2w(gcjLat, gcjLng) : [gcjLat, gcjLng];
-            map.setView([disp[0], disp[1]], 16, {animate:true});
-            box.style.display='none';
-            $id('search-input').value='';
-          });
-          box.appendChild(row);
-        });
-        if (!box.children.length) {
-          box.innerHTML='<div class="result-row"><span class="name">无有效定位结果</span></div>';
-        }
-      }).catch(function(){
-        box.innerHTML='<div class="result-row"><span class="name">搜索失败，请重试</span></div>';
-      });
-  } else {
-    fetch('https://nominatim.openstreetmap.org/search?format=json&limit=6&q='+encodeURIComponent(q))
-      .then(function(r){return r.json();})
-      .then(function(a){
-        box.innerHTML='';
-        if(!a||!a.length){
-          box.innerHTML='<div class="result-row"><span class="name">未找到结果 (国内搜索建议配置高德 Key)</span></div>';
-          return;
-        }
-        a.forEach(function(it){
-          var row=document.createElement('div');row.className='result-row';
-          var parts=it.display_name.split(',');
-          row.innerHTML='<div class="name">'+parts[0]+'</div>'
-                       +'<div class="sub">'+parts.slice(1,3).join(',')+'</div>';
-          row.addEventListener('click',function(){
-            var wLat=+it.lat,wLng=+it.lon;
-            var disp=(currentLayer==='osm'||currentLayer==='esri')?[wLat,wLng]:GCJ.w2g(wLat,wLng);
-            map.setView([disp[0], disp[1]], 16, {animate:true});
-            box.style.display='none';
-            $id('search-input').value='';
-          });
-          box.appendChild(row);
-        });
-      }).catch(function(){
-        box.innerHTML='<div class="result-row"><span class="name">搜索失败，请重试</span></div>';
-      });
+  var seq=++searchSeq;
+  searchState={query:q,filter:'all',amap:[],osm:[],amapDone:!AMAP_KEY,osmDone:false};
+  var box=$id('search-results');
+  box.style.display='block';
+  renderSearchResults();
+
+  if(AMAP_KEY){
+    fetchAmapPlaces(q).then(function(items){
+      if(seq!==searchSeq)return;
+      searchState.amap=items;
+      searchState.amapDone=true;
+      renderSearchResults();
+    }).catch(function(){
+      if(seq!==searchSeq)return;
+      searchState.amapDone=true;
+      renderSearchResults();
+    });
   }
+
+  fetchGlobalPlaces(q).then(function(items){
+    if(seq!==searchSeq)return;
+    searchState.osm=items;
+    searchState.osmDone=true;
+    renderSearchResults();
+  }).catch(function(){
+    if(seq!==searchSeq)return;
+    searchState.osmDone=true;
+    renderSearchResults();
+  });
 }
 $id('search-btn').addEventListener('click',doSearch);
 $id('search-input').addEventListener('keydown',function(e){if(e.key==='Enter')doSearch();});
@@ -1581,7 +1768,7 @@ if(elConfigSpoofSwitch)elConfigSpoofSwitch.addEventListener('click',toggleSpoofi
 /* ─── Locked position pin ────────────────────────── */
 var lockedMarker = null;
 function updateLockedPin(lat, lng) {
-  var disp = (currentLayer==='osm'||currentLayer==='esri') ? [lat, lng] : GCJ.w2g(lat, lng);
+  var disp = wgsToDisp(lat, lng);
   var pinHtml = '<div class="locked-pin' + (spoofEnabled ? '' : ' paused') + '"><div class="locked-pin-inner"></div><div class="locked-pin-dot"></div></div>';
   var icon = L.divIcon({ html: pinHtml, className: '', iconSize: [28, 36], iconAnchor: [14, 36] });
   if (lockedMarker) {
@@ -1675,8 +1862,7 @@ function renderFavorites(){
     // Jump to location on tap
     item.addEventListener('click',function(e){
       if(e.target.classList.contains('fav-del'))return;
-      var disp=currentLayer==='osm'?[f.latitude,f.longitude]:GCJ.w2g(f.latitude,f.longitude);
-      map.setView([disp[0],disp[1]],15,{animate:true});
+      jumpToWgs(f.latitude,f.longitude,15);
       closeFavPanel();
     });
 
@@ -1697,7 +1883,7 @@ function deleteFavorite(id){
 }
 
 function escHtml(s){
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 /* Favorites panel open/close */
@@ -1738,8 +1924,7 @@ $id('btn-locate').addEventListener('click', function(e){
     navigator.geolocation.getCurrentPosition(function(pos) {
       var lat = pos.coords.latitude;
       var lng = pos.coords.longitude;
-      var disp = (currentLayer === 'osm'||currentLayer === 'esri') ? [lat, lng] : GCJ.w2g(lat, lng);
-      map.setView([disp[0], disp[1]], 16, {animate: true});
+      jumpToWgs(lat, lng, 16);
       toast('已定位到当前真实位置');
     }, function(err) {
       toast('定位失败: ' + err.message);
@@ -1960,6 +2145,9 @@ handleAuthentication(function(activeToken) {
       syncSpoofUI();
       WGS={lat:d.latitude||39.90872,lng:d.longitude||116.39748};
       lockedWGS={lat:WGS.lat,lng:WGS.lng};
+      if(GCJ.isOut(WGS.lat,WGS.lng)&&!isWgsLayer(currentLayer)){
+        currentLayer='osm';
+      }
       altitude=d.altitude||null;
       hacc=d.horizontalAccuracy||39;
       vacc=d.verticalAccuracy||1000;
@@ -1988,7 +2176,7 @@ handleAuthentication(function(activeToken) {
 });
 
 if (!AMAP_KEY) {
-  $id('search-input').placeholder = '搜索地点 (国内搜索建议配置高德 Key)';
+  $id('search-input').placeholder = '搜索全球地点或经纬度 (国内建议配高德 Key)';
 }
 
 })();
