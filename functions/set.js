@@ -6,7 +6,7 @@
  * ⚠️【特别声明】：本项目完全免费开源，严禁以任何形式进行二次售卖、转售、商业收费代搭建！
  */
 
-import { DEFAULT_LOC, authOk, jsonResponse, errorResponse, corsHeaders } from './_utils.js';
+import { authOk, readSavedLoc, jsonResponse, errorResponse, corsHeaders } from './_utils.js';
 
 export async function onRequestPost(context) {
   const { request, env } = context;
@@ -17,13 +17,10 @@ export async function onRequestPost(context) {
 
   try {
     const data = await request.json();
-    let current = DEFAULT_LOC;
-
-    if (env.SPOOFER_DATA) {
-      current = await env.SPOOFER_DATA.get('loc', { type: 'json' }) || DEFAULT_LOC;
-    }
+    const current = await readSavedLoc(env);
 
     const updated = { ...current };
+    if (typeof data.enabled            === 'boolean') updated.enabled            = data.enabled;
     if (typeof data.latitude           === 'number') updated.latitude           = data.latitude;
     if (typeof data.longitude          === 'number') updated.longitude          = data.longitude;
     if (typeof data.altitude           === 'number') updated.altitude           = data.altitude;

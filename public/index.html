@@ -89,14 +89,15 @@ html.dark #status-pill{background:rgba(255,255,255,0.08);}
 html.dark .result-row{color:var(--text);border-bottom-color:rgba(255,255,255,0.06);}
 html.dark .result-row:active{background:rgba(0,122,255,0.15);}
 html.dark .config-code-box{background:rgba(0,0,0,0.35);color:var(--text);border-color:rgba(255,255,255,0.1);}
-/* dark mode toggle button */
-#dark-toggle{
+html.dark #btn-spoof-toggle{background:rgba(255,255,255,0.08);color:var(--text);border-color:rgba(255,255,255,0.12);}
+/* toggle rows in config panel */
+.config-toggle-row{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 20px;
   font-size:14px;font-weight:500;color:var(--text);
   cursor:default;
 }
-#dark-toggle-label{display:flex;align-items:center;gap:8px;}
+.config-toggle-label{display:flex;align-items:center;gap:8px;}
 .toggle-switch{
   position:relative;width:44px;height:26px;
   background:rgba(120,120,128,0.32);
@@ -106,6 +107,7 @@ html.dark .config-code-box{background:rgba(0,0,0,0.35);color:var(--text);border-
   flex-shrink:0;
 }
 .toggle-switch.on{background:var(--accent);}
+.toggle-switch.on.green{background:var(--green);}
 .toggle-knob{
   position:absolute;
   top:3px;left:3px;
@@ -121,6 +123,11 @@ html.dark .config-code-box{background:rgba(0,0,0,0.35);color:var(--text);border-
   width:28px;height:36px;
   position:relative;
   filter:drop-shadow(0 3px 8px rgba(0,122,255,0.5));
+  transition:opacity .25s,filter .25s;
+}
+.locked-pin.paused{
+  opacity:.35;
+  filter:grayscale(.7) drop-shadow(0 2px 4px rgba(0,0,0,0.2));
 }
 .locked-pin-inner{
   width:28px;height:28px;
@@ -732,7 +739,7 @@ html.dark #search-results::-webkit-scrollbar-thumb {
 /* Collapsed section (always visible) */
 #drawer-collapsed{
   padding:4px 16px 16px;
-  display:flex;gap:10px;align-items:center;
+  display:flex;gap:8px;align-items:center;
 }
 
 /* Saved status pill */
@@ -750,16 +757,33 @@ html.dark #search-results::-webkit-scrollbar-thumb {
 }
 #status-dot.saved{background:var(--green);}
 #status-dot.unsaved{background:#FF9F0A;animation:blink 1.5s ease-in-out infinite;}
+#status-dot.paused{background:#8E8E93;}
 @keyframes blink{0%,100%{opacity:1;}50%{opacity:.4;}}
 #status-text{font-size:12px;font-weight:500;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 
+#btn-spoof-toggle{
+  height:48px;padding:0 10px 0 12px;
+  background:rgba(255,255,255,.55);
+  color:var(--text);font-size:13px;font-weight:600;
+  border:1px solid var(--glass-light-border);
+  border-radius:var(--r-md);cursor:pointer;
+  box-shadow:0 2px 10px rgba(0,0,0,.06);
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
+  transition:transform .15s,opacity .15s,background .15s;
+}
+#btn-spoof-toggle:active{transform:scale(.95);}
+#btn-spoof-toggle:disabled{opacity:.6;pointer-events:none;}
+#btn-spoof-toggle .toggle-switch{width:38px;height:22px;border-radius:11px;pointer-events:none;}
+#btn-spoof-toggle .toggle-knob{width:16px;height:16px;}
+#btn-spoof-toggle .toggle-switch.on .toggle-knob{transform:translateX(16px);}
+
 #btn-lock{
-  height:48px;padding:0 22px;
+  height:48px;padding:0 18px;
   background:var(--green);
   color:#fff;font-size:15px;font-weight:600;
   border:none;border-radius:var(--r-md);cursor:pointer;
   box-shadow:0 4px 16px rgba(48,209,88,.35);
-  display:flex;align-items:center;gap:7px;flex-shrink:0;
+  display:flex;align-items:center;gap:6px;flex-shrink:0;
   transition:transform .15s,background .15s,box-shadow .15s;
 }
 #btn-lock:active{transform:scale(.95);background:var(--green-hover);box-shadow:none;}
@@ -811,7 +835,7 @@ html.dark #search-results::-webkit-scrollbar-thumb {
   -webkit-backdrop-filter:var(--blur-sm);
   color:#fff;font-size:14px;font-weight:500;
   padding:11px 20px;border-radius:var(--r-md);
-  white-space:nowrap;
+  max-width:calc(100vw - 32px);text-align:center;line-height:1.4;
   opacity:0;pointer-events:none;
   transition:opacity .25s,transform .25s;
   box-shadow:0 4px 20px rgba(0,0,0,.25);
@@ -1028,9 +1052,19 @@ html.dark #search-results::-webkit-scrollbar-thumb {
       <div class="config-code-box" id="config-arg-text">...</div>
       <button class="config-action-btn" id="btn-config-copy-arg">复制 argument 参数</button>
     </div>
+    <div class="config-section">
+      <div class="config-toggle-row" style="padding:0;">
+        <div class="config-toggle-label">
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+          模拟定位总开关
+        </div>
+        <div class="toggle-switch green on" id="config-spoof-switch" role="switch" aria-checked="true"><div class="toggle-knob"></div></div>
+      </div>
+      <div class="config-desc" style="margin:8px 0 0;">关闭后保持小火箭配置模式运行，不改写苹果定位响应；切换后需在系统「定位服务」重开关一次清缓存。</div>
+    </div>
     <div class="config-section" style="border-bottom:none;">
-      <div id="dark-toggle">
-        <div id="dark-toggle-label">
+      <div class="config-toggle-row" id="dark-toggle" style="padding:0;">
+        <div class="config-toggle-label">
           <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
           深色模式
         </div>
@@ -1085,8 +1119,12 @@ html.dark #search-results::-webkit-scrollbar-thumb {
       <span id="status-dot"></span>
       <span id="status-text">点击地图选择位置</span>
     </div>
+    <button id="btn-spoof-toggle" type="button" role="switch" aria-checked="true" aria-label="开启或暂停模拟定位">
+      <span id="spoof-toggle-label">模拟</span>
+      <span class="toggle-switch green on" id="spoof-toggle-switch"><span class="toggle-knob"></span></span>
+    </button>
     <button id="btn-lock">
-      <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+      <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 2px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
       <span id="btn-lock-label">锁定</span>
     </button>
   </div>
@@ -1162,6 +1200,8 @@ var GCJ = (function(){
 var map, currentLayer=(AMAP_KEY?'amap':'osm');
 var WGS={lat:39.90872,lng:116.39748}; // current center in WGS-84
 var lockedWGS=null;                   // last saved to server
+var spoofEnabled=true;                // remote spoofing toggle
+var spoofTogglePending=false;
 var altitude=null,hacc=39,vacc=1000;
 var altFetchTimer=null;
 var drawerExpanded=false;
@@ -1175,6 +1215,9 @@ var elBubbleCoords=$id('bubble-coords'),
     elBubbleAlt=$id('bubble-alt'),
     elStatusDot=$id('status-dot'),
     elStatusText=$id('status-text'),
+    elBtnSpoofToggle=$id('btn-spoof-toggle'),
+    elSpoofToggleSwitch=$id('spoof-toggle-switch'),
+    elConfigSpoofSwitch=$id('config-spoof-switch'),
     elBtnLock=$id('btn-lock'),
     elBtnLockLabel=$id('btn-lock-label'),
     elDrawerExpanded=$id('drawer-expanded'),
@@ -1201,7 +1244,21 @@ function updateBubble(){
   elBubbleCoords.textContent=fmtCoord(WGS.lat,'N','S')+'  '+fmtCoord(WGS.lng,'E','W');
   elBubbleAlt.textContent=altitude!==null?('海拔 '+Math.round(altitude)+' m'):'海拔 — m';
 }
+function syncSpoofUI(){
+  var on = spoofEnabled !== false;
+  if(elBtnSpoofToggle) elBtnSpoofToggle.setAttribute('aria-checked', on ? 'true' : 'false');
+  if(elSpoofToggleSwitch) elSpoofToggleSwitch.classList.toggle('on', on);
+  if(elConfigSpoofSwitch){
+    elConfigSpoofSwitch.classList.toggle('on', on);
+    elConfigSpoofSwitch.setAttribute('aria-checked', on ? 'true' : 'false');
+  }
+}
 function updateStatus(){
+  if(!spoofEnabled){
+    elStatusDot.className='status-dot paused';
+    elStatusText.textContent='已暂停 · 当前真实定位';
+    return;
+  }
   if(!lockedWGS){
     elStatusDot.className='status-dot';
     elStatusText.textContent='拖动地图，然后点「锁定」';
@@ -1210,7 +1267,7 @@ function updateStatus(){
   var same=Math.abs(WGS.lat-lockedWGS.lat)<0.00001&&Math.abs(WGS.lng-lockedWGS.lng)<0.00001;
   if(same){
     elStatusDot.className='status-dot saved';
-    elStatusText.textContent='已锁定 · '+WGS.lat.toFixed(4)+', '+WGS.lng.toFixed(4);
+    elStatusText.textContent='已开启 · '+WGS.lat.toFixed(4)+', '+WGS.lng.toFixed(4);
   }else{
     elStatusDot.className='status-dot unsaved';
     elStatusText.textContent='位置已移动，点「锁定」生效';
@@ -1462,6 +1519,7 @@ function lockLocation(){
   var vaccVal=$id('inp-vacc').value?parseFloat($id('inp-vacc').value):vacc;
 
   var payload={
+    enabled:true,
     latitude:WGS.lat,longitude:WGS.lng,
     altitude:altVal||0,
     horizontalAccuracy:haccVal||39,
@@ -1473,6 +1531,8 @@ function lockLocation(){
     body:JSON.stringify(payload)
   }).then(function(r){
     if(!r.ok)throw new Error(r.status);
+    spoofEnabled=true;
+    syncSpoofUI();
     lockedWGS={lat:WGS.lat,lng:WGS.lng};
     $id('crosshair').classList.add('locked');
     setTimeout(function(){$id('crosshair').classList.remove('locked');},400);
@@ -1488,11 +1548,41 @@ function lockLocation(){
 }
 elBtnLock.addEventListener('click',lockLocation);
 
+function toggleSpoofing(){
+  if(spoofTogglePending)return;
+  var nextVal=!spoofEnabled;
+  spoofTogglePending=true;
+  if(elBtnSpoofToggle)elBtnSpoofToggle.disabled=true;
+  fetch(API('/set'),{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({enabled:nextVal})
+  }).then(function(r){
+    if(!r.ok)throw new Error(r.status);
+    return r.json();
+  }).then(function(d){
+    spoofEnabled=(d&&typeof d.enabled==='boolean')?d.enabled:nextVal;
+    syncSpoofUI();
+    updateStatus();
+    if(lockedWGS)updateLockedPin(lockedWGS.lat,lockedWGS.lng);
+    toast(spoofEnabled
+      ?'已开启模拟定位，开关一次系统定位服务生效'
+      :'已暂停模拟，开关一次系统定位服务即恢复真实定位');
+  }).catch(function(){
+    toast('切换失败，请检查网络或 Token');
+  }).finally(function(){
+    spoofTogglePending=false;
+    if(elBtnSpoofToggle)elBtnSpoofToggle.disabled=false;
+  });
+}
+if(elBtnSpoofToggle)elBtnSpoofToggle.addEventListener('click',toggleSpoofing);
+if(elConfigSpoofSwitch)elConfigSpoofSwitch.addEventListener('click',toggleSpoofing);
+
 /* ─── Locked position pin ────────────────────────── */
 var lockedMarker = null;
 function updateLockedPin(lat, lng) {
   var disp = (currentLayer==='osm'||currentLayer==='esri') ? [lat, lng] : GCJ.w2g(lat, lng);
-  var pinHtml = '<div class="locked-pin"><div class="locked-pin-inner"></div><div class="locked-pin-dot"></div></div>';
+  var pinHtml = '<div class="locked-pin' + (spoofEnabled ? '' : ' paused') + '"><div class="locked-pin-inner"></div><div class="locked-pin-dot"></div></div>';
   var icon = L.divIcon({ html: pinHtml, className: '', iconSize: [28, 36], iconAnchor: [14, 36] });
   if (lockedMarker) {
     lockedMarker.setLatLng([disp[0], disp[1]]).setIcon(icon);
@@ -1866,6 +1956,8 @@ handleAuthentication(function(activeToken) {
   fetch(API('/loc.json'))
     .then(function(r){return r.json();})
     .then(function(d){
+      spoofEnabled=(d.enabled!==false);
+      syncSpoofUI();
       WGS={lat:d.latitude||39.90872,lng:d.longitude||116.39748};
       lockedWGS={lat:WGS.lat,lng:WGS.lng};
       altitude=d.altitude||null;

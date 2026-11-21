@@ -661,6 +661,16 @@
 
   function spoofAppleResponse(responseBytes, rawConfig) {
     var config = normalizeConfig(rawConfig);
+    if (config.enabled === false) {
+      return {
+        response: responseBytes,
+        payload: responseBytes,
+        wifiCount: 0,
+        cellCount: 0,
+        kind: "disabled",
+        prefix: ""
+      };
+    }
     var extraction = null;
     var strictError = null;
 
@@ -724,6 +734,10 @@
   /* ─────────────────────────────────────────────────────────────
      7. 参数解析与配置归一化 (Arguments & Config Normalization)
   ───────────────────────────────────────────────────────────── */
+  function parseEnabledFlag(val) {
+    return val !== false && val !== "false" && val !== 0 && val !== "0";
+  }
+
   function normalizeConfig(input) {
     var cfg = {};
     input = input || {};
@@ -742,6 +756,7 @@
     cfg.horizontalAccuracy = Number(cfg.horizontalAccuracy) || 39;
     cfg.verticalAccuracy = Number(cfg.verticalAccuracy) || 1000;
     cfg.altitude = Number(cfg.altitude) || 44;
+    cfg.enabled = parseEnabledFlag(cfg.enabled);
     cfg.debug = cfg.debug === true || cfg.debug === "true";
     cfg.failOpen = cfg.failOpen !== false && cfg.failOpen !== "false";
     return cfg;
@@ -834,6 +849,13 @@
     }
 
     function processRewrite(activeConfig) {
+      if (activeConfig.enabled === false) {
+        if (activeConfig.debug) {
+          console.log("[Location Spoofer] Disabled via config, passing through.");
+        }
+        passThrough();
+        return;
+      }
       try {
         var rawBody = ByteUtils.toUint8Array(($response && $response.body != null) ? $response.body : ($response && $response.bodyBytes));
         if (!rawBody || rawBody.length < 2) {
@@ -867,6 +889,9 @@
     if (config.configUrl) {
       fetchRemoteConfig(config.configUrl, function (remoteData) {
         if (remoteData) {
+          if (remoteData.enabled !== undefined && remoteData.enabled !== null) {
+            config.enabled = parseEnabledFlag(remoteData.enabled);
+          }
           if (remoteData.latitude != null) config.latitude = Number(remoteData.latitude);
           if (remoteData.longitude != null) config.longitude = Number(remoteData.longitude);
           if (remoteData.horizontalAccuracy != null) config.horizontalAccuracy = Number(remoteData.horizontalAccuracy);

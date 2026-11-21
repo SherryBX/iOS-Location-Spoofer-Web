@@ -7,12 +7,24 @@
  */
 
 export const DEFAULT_LOC = {
+  enabled:            true,
   latitude:           39.90872,
   longitude:          116.39748,
   altitude:           44,
   horizontalAccuracy: 39,
   verticalAccuracy:   1000
 };
+
+export async function readSavedLoc(env) {
+  let loc = { ...DEFAULT_LOC };
+  if (env.SPOOFER_DATA) {
+    const saved = await env.SPOOFER_DATA.get('loc', { type: 'json' });
+    if (saved) {
+      loc = { ...DEFAULT_LOC, ...saved };
+    }
+  }
+  return loc;
+}
 
 export function authOk(request, env) {
   const url = new URL(request.url);

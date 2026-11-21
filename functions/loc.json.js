@@ -6,7 +6,7 @@
  * ⚠️【特别声明】：本项目完全免费开源，严禁以任何形式进行二次售卖、转售、商业收费代搭建！
  */
 
-import { DEFAULT_LOC, authOk, jsonResponse, errorResponse, corsHeaders } from './_utils.js';
+import { authOk, readSavedLoc, jsonResponse, errorResponse, corsHeaders } from './_utils.js';
 
 export async function onRequestGet(context) {
   const { request, env } = context;
@@ -15,10 +15,7 @@ export async function onRequestGet(context) {
     return errorResponse('unauthorized', 401);
   }
 
-  let loc = DEFAULT_LOC;
-  if (env.SPOOFER_DATA) {
-    loc = await env.SPOOFER_DATA.get('loc', { type: 'json' }) || DEFAULT_LOC;
-  }
+  const loc = await readSavedLoc(env);
 
   return jsonResponse(loc);
 }
